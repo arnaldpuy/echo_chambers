@@ -1,87 +1,9 @@
-
-
-results <- fread("results.data.csv")
-
-# RETRIEVE AREAS AND CATEGORIES FROM SCIMAGO ###################################
-
-# Load dataset -----------------------------------------------------------------
-
-sjr_data <- fread("scimagojr_2024.csv") %>%
-  .[, .(Title, Areas, Categories)]
-
-# Normalize journal names for joining ------------------------------------------
-
-sjr_data[, journal_clean:= tolower(trimws(Title))]
-results[, journal_clean:= tolower(trimws(journal))]
-
-# Merge ------------------------------------------------------------------------
-
-citation_with_subjects <- results %>%
-  merge(., sjr_data, by = "journal_clean") %>%
-  .[, subjects_final:= ifelse(subjects == "", Areas, subjects)] %>%
-  .[, .(cited_doi, citing_doi, title, journal, subjects_final, Categories)]
-
-
-# 1. Normalize field labels
-citation_with_subjects[, subjects_clean := tolower(subjects_final)]
-citation_with_subjects[, subjects_clean := gsub("\\s+", " ", subjects_clean)]
-
-# 2. Split into list column
-citation_with_subjects[, subject_list := strsplit(subjects_clean, ";\\s*")]
-
-# 3. Unnest to long format
-long_subjects <- citation_with_subjects[, .(subject = unlist(subject_list)), cited_doi]
-
-# 4. Count number of unique fields per cited paper
-disciplinary_reach <- long_subjects[, .(n_fields = uniqueN(subject)), cited_doi]
-
-
-
-# ADD ENTROPY SCORE ############################################################
-
-# 5. Compute field entropy per cited paper
-entropy_fun <- function(x) {
-  p <- table(x) / length(x)
-  -sum(p * log2(p))
-}
-
-entropy_df <- long_subjects[, .(field_entropy = entropy_fun(subject)), cited_doi]
-
-# Merge with reach
-disciplinary_reach <- merge(disciplinary_reach, entropy_df, by = "cited_doi")
-
-
-# Merge ------------------------------------------------------------------------
-
-merged_dt <- merge(paper_homophily_profile, tmp, by.x = "paper", by.y = "name") %>%
-  merge(., paper_structural_entropy, by = "paper") %>%
-  merge(., disciplinary_reach, by.x = "doi", by.y = "cited_doi")
-
-
-ggplot(merged_dt, aes(x = echo_chamber, y = field_entropy, fill = echo_chamber)) +
-  geom_boxplot(alpha = 0.7, outlier.size = 1) +
-  scale_fill_manual(values = c("TRUE" = "firebrick", "FALSE" = "gray60")) +
-  labs(
-    title = "Entropy of Citing Fields by Echo Chamber Status",
-    x = "Echo Chamber",
-    y = "Field Entropy (Shannon)"
-  ) +
-  theme_minimal()
-
-
-
-
-
-
-
-
-
-## ----setup, include=FALSE--------------------------------------------------------
+## ----setup, include=FALSE-------------------------------------------------------------------------------
 
 knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
 
 
-## ----preliminary, results="hide", message=FALSE, warning=FALSE, cache=FALSE------
+## ----preliminary, results="hide", message=FALSE, warning=FALSE, cache=FALSE-----------------------------
 
 # PRELIMINARY FUNCTIONS #######################################################
 
@@ -90,7 +12,7 @@ knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
 sensobol::load_packages(c("sensobol", "data.table", "tidyverse", "janitor", 
                           "igraph", "ggraph", "tidygraph", "cowplot", "viridis", 
                           "wesanderson", "parallel", "doParallel", "tm", "scales", 
-                          "ggforce", "here"))
+                          "ggforce", "here", "benchmarkme"))
 
 # Custom theme for plots -------------------------------------------------------
 
@@ -120,7 +42,7 @@ theme_AP <- function() {
 }
 
 
-## ----source_functions, warning=FALSE, message=FALSE, results="hide"--------------
+## ----source_functions, warning=FALSE, message=FALSE, results="hide"-------------------------------------
 
 # SOURCE ALL R FUNCTIONS NEEDED FOR THE STUDY ###################################
 
@@ -129,7 +51,7 @@ lapply(r_functions, source)
 
 
 
-## ----dimensions------------------------------------------------------------------
+## ----dimensions-----------------------------------------------------------------------------------------
 
 # DIMENSIONS DATA #############################################################
 
@@ -302,7 +224,7 @@ fwrite(network.dt, "network.dt.csv")
 fwrite(network.dt.final, "network.dt.final.csv")
 
 
-## ----illustration, fig.height=2.3, fig.width=5.5---------------------------------
+## ----illustration, fig.height=2.3, fig.width=5.5--------------------------------------------------------
 
 # ILLUSTRATIONS OF ECHO CHAMBERS ###############################################
 ################################################################################
@@ -491,7 +413,7 @@ plot.all.examples <- plot_grid(example_strict, example_structural, ncol = 2,
 plot.all.examples
 
 
-## ----echo_chambers, dependson=c("dimensions", "source_functions")----------------
+## ----echo_chambers, dependson=c("dimensions", "source_functions")---------------------------------------
 
 # CREATE GRAPH #################################################################
 
@@ -656,7 +578,7 @@ fwrite(final_nodes_dataset, "./datasets/final_nodes_dataset.csv")
 fwrite(final_edges_dataset, "./datasets/final_edges_dataset.csv")
 
 
-## ----citations, dependson="echo_chambers", fig.height=2.5, fig.width=2.5---------
+## ----citations, dependson="echo_chambers", fig.height=2.5, fig.width=2.5--------------------------------
 
 # ARE PAPERS IN STRUCTURAL ECHO CHAMBERS LESS CITED? ###########################
 
@@ -693,7 +615,7 @@ boxplots.echo.chamber
 
 
 
-## ----plot_echo, dependson="echo_chambers", fig.height=2.5, fig.width=3.5---------
+## ----plot_echo, dependson="echo_chambers", fig.height=2.5, fig.width=3.5--------------------------------
 
 # PLOT #########################################################################
 
@@ -735,7 +657,7 @@ plot.echo.chambers <- final_nodes_dataset %>%
 plot.echo.chambers
 
 
-## ----plot_time, dependson="echo_chambers", fig.height=2.5, fig.width=3-----------
+## ----plot_time, dependson="echo_chambers", fig.height=2.5, fig.width=3----------------------------------
 
 # PLOT #########################################################################
 
@@ -770,7 +692,7 @@ bottom <- plot_grid(plot.echo.chambers, plot.echo.time, ncol = 2,
 plot_grid(plot.all.examples, bottom, ncol = 1, rel_heights = c(0.45, 0.55))
 
 
-## ----polar_coordinates, dependson="echo_chambers"--------------------------------
+## ----polar_coordinates, dependson="echo_chambers"-------------------------------------------------------
 
 # PLOT IN POLAR COORDINATES ###################################################
 
@@ -830,7 +752,7 @@ geom_text(data = tibble(r = year_radius, year = years_to_label),
 polar.plot
 
 
-## ----coauthor, dependson="echo_chambers", fig.height=2, fig.width=2--------------
+## ----coauthor, dependson="echo_chambers", fig.height=2, fig.width=2-------------------------------------
 
 ################################################################################
 ################################################################################
@@ -869,7 +791,7 @@ plot.bars <- final_edges_dataset[, .(prop = .N / nrow(final_edges_dataset)),
 plot.bars
 
 
-## ----coauthor_model, dependson="echo_chambers", fig.height=3, fig.width=2--------
+## ----coauthor_model, dependson="echo_chambers", fig.height=3, fig.width=2-------------------------------
 
 # Aggregate by from.model and citation_type ------------------------------------
 
@@ -897,7 +819,7 @@ plot.bars.model <- merge(tmp, tmp2, by = "from.model") %>%
 plot.bars.model
 
 
-## ----bridging_authors, dependson="echo_chambers", fig.height=4, fig.width=4------
+## ----bridging_authors, dependson="echo_chambers", fig.height=4, fig.width=4-----------------------------
 
 # IDENTIFY BRIDGING AUTHORS ####################################################
 
@@ -979,4 +901,19 @@ bottom <- plot_grid(a, plot.network.authors, ncol = 2, rel_widths = c(0.335, 0.6
                     labels = c("", "c"), label_size = 11)
 
 plot_grid(legend, bottom, rel_heights = c(0.1, 0.9), ncol = 1)
+
+
+## ----session--------------------------------------------------------------------------------------------
+# SESSION INFORMATION ##########################################################
+
+sessionInfo()
+
+## Return the machine CPU
+cat("Machine:     "); print(get_cpu()$model_name)
+
+## Return number of true cores
+cat("Num cores:   "); print(detectCores(logical = FALSE))
+
+## Return number of threads
+cat("Num threads: "); print(detectCores(logical = FALSE))
 

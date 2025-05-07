@@ -49,7 +49,7 @@ knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
 sensobol::load_packages(c("sensobol", "data.table", "tidyverse", "janitor", 
                           "igraph", "ggraph", "tidygraph", "cowplot", "viridis", 
                           "wesanderson", "parallel", "doParallel", "tm", "scales", 
-                          "ggforce", "here"))
+                          "ggforce", "here", "benchmarkme"))
 
 # Custom theme for plots -------------------------------------------------------
 
@@ -954,4 +954,23 @@ bottom <- plot_grid(a, plot.network.authors, ncol = 2, rel_widths = c(0.335, 0.6
                     labels = c("", "c"), label_size = 11)
 
 plot_grid(legend, bottom, rel_heights = c(0.1, 0.9), ncol = 1)
+```
+
+\newpage
+
+# Session Information
+
+```{r session}
+# SESSION INFORMATION ##########################################################
+
+sessionInfo()
+
+## Return the machine CPU
+cat("Machine:     "); print(get_cpu()$model_name)
+
+## Return number of true cores
+cat("Num cores:   "); print(detectCores(logical = FALSE))
+
+## Return number of threads
+cat("Num threads: "); print(detectCores(logical = FALSE))
 ```
